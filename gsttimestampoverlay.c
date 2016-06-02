@@ -189,34 +189,3 @@ gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
 
   return GST_FLOW_OK;
 }
-
-static gboolean
-plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "timestampoverlay", GST_RANK_NONE,
-      GST_TYPE_TIMESTAMPOVERLAY);
-}
-
-/* FIXME: these are normally defined by the GStreamer build system.
-   If you are creating an element to be included in gst-plugins-*,
-   remove these, as they're always defined.  Otherwise, edit as
-   appropriate for your external plugin package. */
-#ifndef VERSION
-#define VERSION "0.0.FIXME"
-#endif
-#ifndef PACKAGE
-#define PACKAGE "FIXME_package"
-#endif
-#ifndef PACKAGE_NAME
-#define PACKAGE_NAME "FIXME_package_name"
-#endif
-#ifndef GST_PACKAGE_ORIGIN
-#define GST_PACKAGE_ORIGIN "http://FIXME.org/"
-#endif
-
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    timestampoverlay,
-    "FIXME plugin description",
-    plugin_init, VERSION, "LGPL", PACKAGE_NAME, GST_PACKAGE_ORIGIN)
-
