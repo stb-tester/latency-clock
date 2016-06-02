@@ -153,6 +153,14 @@ gst_timeoverlayparse_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
       buffer_time);
   clock_time = running_time + gst_element_get_base_time (GST_ELEMENT (overlay));
 
+  GST_DEBUG_OBJECT (filter, "Buffer timestamps"
+      ": buffer_time = %" GST_TIME_FORMAT
+      ", running_time = %" GST_TIME_FORMAT
+      ", clock_time = %" GST_TIME_FORMAT,
+      GST_TIME_ARGS(buffer_time),
+      GST_TIME_ARGS(running_time),
+      GST_TIME_ARGS(clock_time));
+
   timestamps.buffer_time = read_timestamp (0, frame->data[0],
       frame->info.stride[0], frame->info.finfo->pixel_stride[0]);
   timestamps.stream_time = read_timestamp (1, frame->data[0],
