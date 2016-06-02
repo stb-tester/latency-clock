@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
   GstPipeline * pipeline;
   GstClock* clock;
   GError * err = NULL;
-  gchar * sink_pipeline;
+  gchar * sink_pipeline, *pipeline_description;
   struct timespec ts;
   int res;
 
@@ -48,11 +48,13 @@ int main(int argc, char* argv[])
   else
     sink_pipeline = "videoconvert ! autovideosink";
 
-  epipeline = gst_parse_launch (g_strdup_printf (
+  pipeline_description = g_strdup_printf (
       "videotestsrc is-live=true pattern=white "
       "! %s "
       "! timestampoverlay "
-      "! %s", get_current_mode(), sink_pipeline), &err);
+      "! %s", get_current_mode(), sink_pipeline);
+  g_printerr ("Using pipeline %s\n", pipeline_description);
+  epipeline = gst_parse_launch (pipeline_description, &err);
 
   if (err) {
     fprintf(stderr, "Error creating pipeline: %s\n", err->message);
