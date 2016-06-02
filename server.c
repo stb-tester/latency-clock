@@ -21,9 +21,11 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <gst/gst.h>
 
 static gboolean bus_call (GstBus *bus, GstMessage *msg, gpointer data);
+static gchar* get_current_mode (void);
 
 int main(int argc, char* argv[])
 {
@@ -48,9 +50,9 @@ int main(int argc, char* argv[])
 
   epipeline = gst_parse_launch (g_strdup_printf (
       "videotestsrc is-live=true pattern=white "
-      "! video/x-raw,width=1280,height=720 "
+      "! %s "
       "! timestampoverlay "
-      "! %s", sink_pipeline), &err);
+      "! %s", get_current_mode(), sink_pipeline), &err);
 
   if (err) {
     fprintf(stderr, "Error creating pipeline: %s\n", err->message);
@@ -111,4 +113,45 @@ bus_call (GstBus *bus, GstMessage *msg, gpointer data)
   }
 
   return TRUE;
+}
+
+static gchar*
+get_current_mode (void)
+{
+  gchar *tv_stderr = NULL, *tv_stdout = NULL;
+  gint tv_exit_status = -1;
+  GError * err = NULL;
+  GRegex * regex;
+  GMatchInfo * match_info = NULL;
+  int fps;
+  gchar* argv[] = {"tvservice", "-s", NULL};
+
+  /* On a Raspberry Pi we can get the current mode from tvservice so we can set
+   * the caps appropriately */
+  g_spawn_sync (NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, &tv_stdout,
+      &tv_stderr, &tv_exit_status, &err);
+
+  if (err) {
+    g_printerr ("Failed to run tvservice, falling back to defaults: %s\n",
+        err->message);
+    goto error;
+  }
+  if (tv_exit_status != 0) {
+    g_printerr ("tvservice failed, falling back to defaults: %s\n", tv_stderr);
+    goto error;
+  }
+
+  regex = g_regex_new (" (\\d+)x(\\d+) @ (\\d+\\.\\d+)Hz", 0, 0, NULL);
+  if (!g_regex_match (regex, tv_stdout, 0, &match_info)) {
+    g_printerr("Failed to parse tvservice output, falling back to defaults.  "
+        "Output was %s\n", tv_stdout);
+    goto error;
+  };
+  fps = (int) round (g_strtod (g_match_info_fetch (match_info, 3), NULL));
+
+  return g_strdup_printf ("video/x-raw,width=%s,height=%s,framerate=%i/1",
+      g_match_info_fetch (match_info, 1), g_match_info_fetch (match_info, 2),
+      fps);
+error:
+  return "video/x-raw,width=1280,height=720,framerate=50/1";
 }

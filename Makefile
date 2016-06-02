@@ -12,7 +12,7 @@ gsttimestampoverlay.so : \
 	    $$(pkg-config --cflags --libs gstreamer-1.0 gstreamer-video-1.0)
 
 server : server.c
-	$(CC) -o$@ $^ $(CFLAGS) $$(pkg-config --cflags --libs gstreamer-1.0)
+	$(CC) -o$@ $^ $(CFLAGS) $$(pkg-config --cflags --libs gstreamer-1.0) -lm
 
 client : client.c
 	$(CC) -o$@ $^ $(CFLAGS) $$(pkg-config --cflags --libs gstreamer-1.0)
