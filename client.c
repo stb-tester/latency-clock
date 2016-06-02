@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
   gst_bus_add_watch (bus, bus_call, loop);
   gst_object_unref (bus);
 
-  gst_element_set_state(epipeline, GST_STATE_READY);
+/*  gst_element_set_state(epipeline, GST_STATE_READY); */
 
   clock = g_object_new (GST_TYPE_SYSTEM_CLOCK, "clock-type",
       GST_CLOCK_TYPE_REALTIME, NULL);
