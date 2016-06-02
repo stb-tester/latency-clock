@@ -19,3 +19,6 @@ client : client.c
 
 dist:
 	git archive -o latency-clock-0.0.1.tar HEAD --prefix=latency-clock-0.0.1/
+
+clean:
+	rm -f client server gsttimestampoverlay.so
