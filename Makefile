@@ -16,3 +16,6 @@ server : server.c
 
 client : client.c
 	$(CC) -o$@ $^ $(CFLAGS) $$(pkg-config --cflags --libs gstreamer-1.0)
+
+dist:
+	git archive -o latency-clock-0.0.1.tar HEAD --prefix=latency-clock-0.0.1/

@@ -175,8 +175,8 @@ gst_timeoverlayparse_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
 
   latency = clock_time - timestamps.render_time;
 
-  GST_INFO_OBJECT (filter, "Latency: %" GST_STIME_FORMAT,
-      GST_STIME_ARGS(latency));
+  GST_INFO_OBJECT (filter, "Latency: %" GST_TIME_FORMAT,
+      GST_TIME_ARGS(latency));
 
   return GST_FLOW_OK;
 }
