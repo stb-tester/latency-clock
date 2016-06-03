@@ -151,9 +151,8 @@ get_current_mode (void)
   };
   fps = (int) round (g_strtod (g_match_info_fetch (match_info, 3), NULL));
 
-  return g_strdup_printf ("video/x-raw,width=%s,height=%s,framerate=%i/1",
-      g_match_info_fetch (match_info, 1), g_match_info_fetch (match_info, 2),
+  return g_strdup_printf ("video/x-raw,width=640,height=240,framerate=%i/1",
       fps);
 error:
-  return "video/x-raw,width=1280,height=720,framerate=50/1";
+  return "video/x-raw,width=640,height=240,framerate=50/1";
 }
