@@ -126,6 +126,7 @@ gst_timeoverlayparse_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
 {
   GstTimeOverlayParse *overlay = GST_TIMEOVERLAYPARSE (filter);
   Timestamps timestamps;
+  unsigned char * imgdata;
 
   GST_DEBUG_OBJECT (overlay, "transform_frame_ip");
 
@@ -161,15 +162,24 @@ gst_timeoverlayparse_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
       GST_TIME_ARGS(running_time),
       GST_TIME_ARGS(clock_time));
 
-  timestamps.buffer_time = read_timestamp (0, frame->data[0],
+  imgdata = frame->data[0];
+
+  /* Centre Vertically: */
+  imgdata += (frame->info.height - 5 * 8) * frame->info.stride[0] / 2;
+
+  /* Centre Horizontally: */
+  imgdata += (frame->info.width - 64 * 8) * frame->info.finfo->pixel_stride[0]
+      / 2;
+
+  timestamps.buffer_time = read_timestamp (0, imgdata,
       frame->info.stride[0], frame->info.finfo->pixel_stride[0]);
-  timestamps.stream_time = read_timestamp (1, frame->data[0],
+  timestamps.stream_time = read_timestamp (1, imgdata,
       frame->info.stride[0], frame->info.finfo->pixel_stride[0]);
-  timestamps.running_time = read_timestamp (2, frame->data[0],
+  timestamps.running_time = read_timestamp (2, imgdata,
       frame->info.stride[0], frame->info.finfo->pixel_stride[0]);
-  timestamps.clock_time = read_timestamp (3, frame->data[0],
+  timestamps.clock_time = read_timestamp (3, imgdata,
       frame->info.stride[0], frame->info.finfo->pixel_stride[0]);
-  timestamps.render_time = read_timestamp (4, frame->data[0],
+  timestamps.render_time = read_timestamp (4, imgdata,
       frame->info.stride[0], frame->info.finfo->pixel_stride[0]);
 
   GST_DEBUG_OBJECT (filter, "Read timestamps: buffer_time = %" GST_TIME_FORMAT

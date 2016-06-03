@@ -147,6 +147,7 @@ gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
   GstClockTime buffer_time, stream_time, running_time, clock_time, latency,
       render_time;
   GstSegment *segment = &GST_BASE_TRANSFORM (overlay)->segment;
+  unsigned char * imgdata;
 
   buffer_time = GST_BUFFER_TIMESTAMP (frame->buffer);
 
@@ -176,15 +177,24 @@ gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
   else
     render_time = clock_time;
 
-  draw_timestamp (0, buffer_time, frame->data[0], frame->info.stride[0],
+  imgdata = frame->data[0];
+
+  /* Centre Vertically: */
+  imgdata += (frame->info.height - 5 * 8) * frame->info.stride[0] / 2;
+
+  /* Centre Horizontally: */
+  imgdata += (frame->info.width - 64 * 8) * frame->info.finfo->pixel_stride[0]
+      / 2;
+
+  draw_timestamp (0, buffer_time, imgdata, frame->info.stride[0],
       frame->info.finfo->pixel_stride[0]);
-  draw_timestamp (1, stream_time, frame->data[0], frame->info.stride[0],
+  draw_timestamp (1, stream_time, imgdata, frame->info.stride[0],
       frame->info.finfo->pixel_stride[0]);
-  draw_timestamp (2, running_time, frame->data[0], frame->info.stride[0],
+  draw_timestamp (2, running_time, imgdata, frame->info.stride[0],
       frame->info.finfo->pixel_stride[0]);
-  draw_timestamp (3, clock_time, frame->data[0], frame->info.stride[0],
+  draw_timestamp (3, clock_time, imgdata, frame->info.stride[0],
       frame->info.finfo->pixel_stride[0]);
-  draw_timestamp (4, render_time, frame->data[0], frame->info.stride[0],
+  draw_timestamp (4, render_time, imgdata, frame->info.stride[0],
       frame->info.finfo->pixel_stride[0]);
 
   return GST_FLOW_OK;
