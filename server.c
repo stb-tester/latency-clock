@@ -38,6 +38,7 @@ int main(int argc, char* argv[])
   gchar * sink_pipeline, *pipeline_description;
   struct timespec ts;
   int res;
+  GstClock *clock;
 
   gst_init(&argc, &argv);
 
@@ -92,6 +93,10 @@ int main(int argc, char* argv[])
   g_return_val_if_fail (res == 0, 1);
 
   gst_element_set_state(epipeline, GST_STATE_PLAYING);
+
+  clock = gst_pipeline_get_clock (pipeline);
+  GST_INFO("Pipeline clock is %" GST_PTR_FORMAT, clock);
+  g_clear_object (&clock);
 
   g_main_loop_run (loop);
 
