@@ -167,28 +167,6 @@ gst_timestampoverlay_set_clock (GstElement * element, GstClock * clock)
       clock);
 }
 
-static GstClockTime
-buffer_time_to_realtime(GstTimeStampOverlay *timestampoverlay,
-    GstClockTime buffer_pts)
-{
-  GstBaseTransform * trans = GST_BASE_TRANSFORM (timestampoverlay);
-  GstClockTime pipeline_clock_time, out;
-
-  if (trans->segment.format == GST_FORMAT_TIME &&
-      GST_CLOCK_TIME_IS_VALID (buffer_pts)) {
-    pipeline_clock_time = GST_ELEMENT (trans)->base_time +
-        gst_segment_to_running_time (
-            &trans->segment, GST_FORMAT_TIME, buffer_pts);
-    GST_OBJECT_LOCK (timestampoverlay->realtime_clock);
-    out = gst_clock_unadjust_unlocked (
-        timestampoverlay->realtime_clock, pipeline_clock_time);
-    GST_OBJECT_UNLOCK (timestampoverlay->realtime_clock);
-  } else {
-    out = GST_CLOCK_TIME_NONE;
-  }
-  return out;
-}
-
 static void
 draw_timestamp(int lineoffset, GstClockTime timestamp, unsigned char* buf,
     size_t stride, int pxsize)
@@ -213,7 +191,7 @@ gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
   GST_DEBUG_OBJECT (overlay, "transform_frame_ip");
 
   GstClockTime buffer_time, stream_time, running_time, clock_time, latency,
-      render_time;
+      render_time, render_realtime;
   GstSegment *segment = &GST_BASE_TRANSFORM (overlay)->segment;
   unsigned char * imgdata;
 
@@ -245,6 +223,11 @@ gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
   else
     render_time = clock_time;
 
+  GST_OBJECT_LOCK (overlay->realtime_clock);
+  render_realtime = gst_clock_unadjust_unlocked (
+      overlay->realtime_clock, render_time);
+  GST_OBJECT_UNLOCK (overlay->realtime_clock);
+
   imgdata = frame->data[0];
 
   /* Centre Vertically: */
@@ -264,8 +247,7 @@ gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
       frame->info.finfo->pixel_stride[0]);
   draw_timestamp (4, render_time, imgdata, frame->info.stride[0],
       frame->info.finfo->pixel_stride[0]);
-  draw_timestamp (5, buffer_time_to_realtime (overlay, GST_BUFFER_PTS (
-      frame->buffer)), imgdata, frame->info.stride[0],
+  draw_timestamp (5, render_realtime, imgdata, frame->info.stride[0],
       frame->info.finfo->pixel_stride[0]);
 
   return GST_FLOW_OK;
