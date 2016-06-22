@@ -103,6 +103,7 @@ typedef struct {
   GstClockTime running_time;
   GstClockTime clock_time;
   GstClockTime render_time;
+  GstClockTime render_realtime;
 } Timestamps;
 
 static GstClockTime
@@ -165,7 +166,7 @@ gst_timeoverlayparse_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
   imgdata = frame->data[0];
 
   /* Centre Vertically: */
-  imgdata += (frame->info.height - 5 * 8) * frame->info.stride[0] / 2;
+  imgdata += (frame->info.height - 6 * 8) * frame->info.stride[0] / 2;
 
   /* Centre Horizontally: */
   imgdata += (frame->info.width - 64 * 8) * frame->info.finfo->pixel_stride[0]
@@ -181,17 +182,21 @@ gst_timeoverlayparse_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
       frame->info.stride[0], frame->info.finfo->pixel_stride[0]);
   timestamps.render_time = read_timestamp (4, imgdata,
       frame->info.stride[0], frame->info.finfo->pixel_stride[0]);
+  timestamps.render_realtime = read_timestamp (5, imgdata,
+      frame->info.stride[0], frame->info.finfo->pixel_stride[0]);
 
   GST_DEBUG_OBJECT (filter, "Read timestamps: buffer_time = %" GST_TIME_FORMAT
       ", stream_time = %" GST_TIME_FORMAT ", running_time = %" GST_TIME_FORMAT
-      ", clock_time = %" GST_TIME_FORMAT ", render_time = %" GST_TIME_FORMAT,
+      ", clock_time = %" GST_TIME_FORMAT ", render_time = %" GST_TIME_FORMAT
+      ", render_realtime = %" GST_TIME_FORMAT,
       GST_TIME_ARGS(timestamps.buffer_time),
       GST_TIME_ARGS(timestamps.stream_time),
       GST_TIME_ARGS(timestamps.running_time),
       GST_TIME_ARGS(timestamps.clock_time),
-      GST_TIME_ARGS(timestamps.render_time));
+      GST_TIME_ARGS(timestamps.render_time),
+      GST_TIME_ARGS(timestamps.render_realtime));
 
-  latency = clock_time - timestamps.render_time;
+  latency = clock_time - timestamps.render_realtime;
 
   GST_INFO_OBJECT (filter, "Latency: %" GST_TIME_FORMAT,
       GST_TIME_ARGS(latency));

@@ -39,6 +39,7 @@ struct _GstTimeStampOverlay
   GstVideoFilter base_timestampoverlay;
 
   GstClockTime latency;
+  GstClock *realtime_clock;
 };
 
 struct _GstTimeStampOverlayClass

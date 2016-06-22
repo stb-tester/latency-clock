@@ -34,7 +34,6 @@ int main(int argc, char* argv[])
   GstElement * epipeline;
   GstElement * mmalvideosink;
   GstPipeline * pipeline;
-  GstClock* clock;
   GError * err = NULL;
   gchar * sink_pipeline, *pipeline_description;
   struct timespec ts;
@@ -85,10 +84,6 @@ int main(int argc, char* argv[])
   gst_object_unref (bus);
 
   gst_element_set_state(epipeline, GST_STATE_READY);
-
-  clock = g_object_new (GST_TYPE_SYSTEM_CLOCK, "clock-type",
-      GST_CLOCK_TYPE_REALTIME, NULL);
-  gst_pipeline_use_clock(pipeline, clock);
 
   res = clock_gettime(CLOCK_REALTIME, &ts);
   g_return_val_if_fail (res == 0, 1);

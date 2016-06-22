@@ -45,10 +45,13 @@ GST_DEBUG_CATEGORY_STATIC (gst_timestampoverlay_debug_category);
 #define GST_CAT_DEFAULT gst_timestampoverlay_debug_category
 
 /* prototypes */
+static void gst_timestampoverlay_dispose (GObject *object);
 static gboolean gst_timestampoverlay_src_event (GstBaseTransform *
     basetransform, GstEvent * event);
 static GstFlowReturn gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter,
     GstVideoFrame * frame);
+static gboolean gst_timestampoverlay_set_clock (GstElement * element,
+    GstClock * clock);
 
 enum
 {
@@ -75,23 +78,27 @@ G_DEFINE_TYPE_WITH_CODE (GstTimeStampOverlay, gst_timestampoverlay, GST_TYPE_VID
 static void
 gst_timestampoverlay_class_init (GstTimeStampOverlayClass * klass)
 {
+  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+  GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
   GstBaseTransformClass *base_transform_class = GST_BASE_TRANSFORM_CLASS (klass);
   GstVideoFilterClass *video_filter_class = GST_VIDEO_FILTER_CLASS (klass);
 
   /* Setting up pads and setting metadata should be moved to
      base_class_init if you intend to subclass this class. */
-  gst_element_class_add_pad_template (GST_ELEMENT_CLASS(klass),
+  gst_element_class_add_pad_template (gstelement_class,
       gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
         gst_caps_from_string (VIDEO_SRC_CAPS)));
-  gst_element_class_add_pad_template (GST_ELEMENT_CLASS(klass),
+  gst_element_class_add_pad_template (gstelement_class,
       gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
         gst_caps_from_string (VIDEO_SINK_CAPS)));
 
-  gst_element_class_set_static_metadata (GST_ELEMENT_CLASS(klass),
+  gst_element_class_set_static_metadata (gstelement_class,
       "Timestampoverlay", "Generic", "Draws the various timestamps on the "
       "video so they can be read off the video afterwards",
       "William Manley <will@williammanley.net>");
 
+  gobject_class->dispose = GST_DEBUG_FUNCPTR (gst_timestampoverlay_dispose);
+  gstelement_class->set_clock = GST_DEBUG_FUNCPTR (gst_timestampoverlay_set_clock);
   base_transform_class->src_event = GST_DEBUG_FUNCPTR (gst_timestampoverlay_src_event);
   video_filter_class->transform_frame_ip = GST_DEBUG_FUNCPTR (gst_timestampoverlay_transform_frame_ip);
 }
@@ -99,7 +106,20 @@ gst_timestampoverlay_class_init (GstTimeStampOverlayClass * klass)
 static void
 gst_timestampoverlay_init (GstTimeStampOverlay *timestampoverlay)
 {
+  GST_OBJECT_FLAG_SET (timestampoverlay, GST_ELEMENT_FLAG_REQUIRE_CLOCK);
+
   timestampoverlay->latency = GST_CLOCK_TIME_NONE;
+  timestampoverlay->realtime_clock = g_object_new (GST_TYPE_SYSTEM_CLOCK,
+      "clock-type", GST_CLOCK_TYPE_REALTIME, NULL);
+  GST_OBJECT_FLAG_SET (timestampoverlay->realtime_clock,
+      GST_CLOCK_FLAG_CAN_SET_MASTER);
+}
+
+static void
+gst_timestampoverlay_dispose (GObject *object)
+{
+  GstTimeStampOverlay *timeoverlay = GST_TIMESTAMPOVERLAY (object);
+  g_clear_object (&timeoverlay->realtime_clock);
 }
 
 static gboolean
@@ -119,6 +139,54 @@ gst_timestampoverlay_src_event (GstBaseTransform * basetransform, GstEvent * eve
   return
       GST_BASE_TRANSFORM_CLASS (gst_timestampoverlay_parent_class)->src_event
       (basetransform, event);
+}
+
+static gboolean
+gst_timestampoverlay_set_clock (GstElement * element, GstClock * clock)
+{
+  GstTimeStampOverlay *timestampoverlay = GST_TIMESTAMPOVERLAY (element);
+
+  GST_DEBUG_OBJECT (timestampoverlay, "set_clock (%" GST_PTR_FORMAT ")", clock);
+
+  if (gst_clock_set_master (timestampoverlay->realtime_clock, clock)) {
+    if (clock) {
+      /* gst_clock_set_master is asynchronous and may take some time to sync.
+       * To give it a helping hand we'll initialise it here so we don't send
+       * through spurious timings with the first buffer. */
+      gst_clock_set_calibration (timestampoverlay->realtime_clock,
+          gst_clock_get_internal_time (timestampoverlay->realtime_clock),
+          gst_clock_get_time (clock), 1, 1);
+    }
+  } else {
+    GST_WARNING_OBJECT (element, "Failed to slave internal REALTIME clock %"
+        GST_PTR_FORMAT " to master clock %" GST_PTR_FORMAT,
+        timestampoverlay->realtime_clock, clock);
+  }
+
+  return GST_ELEMENT_CLASS (gst_timestampoverlay_parent_class)->set_clock (element,
+      clock);
+}
+
+static GstClockTime
+buffer_time_to_realtime(GstTimeStampOverlay *timestampoverlay,
+    GstClockTime buffer_pts)
+{
+  GstBaseTransform * trans = GST_BASE_TRANSFORM (timestampoverlay);
+  GstClockTime pipeline_clock_time, out;
+
+  if (trans->segment.format == GST_FORMAT_TIME &&
+      GST_CLOCK_TIME_IS_VALID (buffer_pts)) {
+    pipeline_clock_time = GST_ELEMENT (trans)->base_time +
+        gst_segment_to_running_time (
+            &trans->segment, GST_FORMAT_TIME, buffer_pts);
+    GST_OBJECT_LOCK (timestampoverlay->realtime_clock);
+    out = gst_clock_unadjust_unlocked (
+        timestampoverlay->realtime_clock, pipeline_clock_time);
+    GST_OBJECT_UNLOCK (timestampoverlay->realtime_clock);
+  } else {
+    out = GST_CLOCK_TIME_NONE;
+  }
+  return out;
 }
 
 static void
@@ -180,7 +248,7 @@ gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
   imgdata = frame->data[0];
 
   /* Centre Vertically: */
-  imgdata += (frame->info.height - 5 * 8) * frame->info.stride[0] / 2;
+  imgdata += (frame->info.height - 6 * 8) * frame->info.stride[0] / 2;
 
   /* Centre Horizontally: */
   imgdata += (frame->info.width - 64 * 8) * frame->info.finfo->pixel_stride[0]
@@ -195,6 +263,9 @@ gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
   draw_timestamp (3, clock_time, imgdata, frame->info.stride[0],
       frame->info.finfo->pixel_stride[0]);
   draw_timestamp (4, render_time, imgdata, frame->info.stride[0],
+      frame->info.finfo->pixel_stride[0]);
+  draw_timestamp (5, buffer_time_to_realtime (overlay, GST_BUFFER_PTS (
+      frame->buffer)), imgdata, frame->info.stride[0],
       frame->info.finfo->pixel_stride[0]);
 
   return GST_FLOW_OK;
