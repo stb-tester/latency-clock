@@ -32,6 +32,7 @@ int main(int argc, char* argv[])
   GMainLoop *loop;
   GstBus *bus;
   GstElement * epipeline;
+  GstElement * mmalvideosink;
   GstPipeline * pipeline;
   GstClock* clock;
   GError * err = NULL;
@@ -46,7 +47,7 @@ int main(int argc, char* argv[])
   if (argc > 1)
     sink_pipeline = argv[1];
   else
-    sink_pipeline = "videoconvert ! autovideosink";
+    sink_pipeline = "videoconvert ! mmalvideosink name=mmalsink";
 
   pipeline_description = g_strdup_printf (
       "videotestsrc is-live=true pattern=white "
@@ -62,6 +63,21 @@ int main(int argc, char* argv[])
   }
   g_return_val_if_fail (epipeline != NULL, 1);
   pipeline = GST_PIPELINE(epipeline);
+
+  mmalvideosink = gst_bin_get_by_name (GST_BIN(pipeline), "mmalsink");
+  if (mmalvideosink) {
+    /* By default mmalvideosink scales the video to fullscreen.  We want it
+     * original resolution but centered */
+    GstStructure * destinationwindow = gst_structure_new ("destinationwindow",
+        "x", G_TYPE_DOUBLE, (double) (1280. - 640.) / 2. / 1280.,
+        "y", G_TYPE_DOUBLE, (double) (720. - 240.) / 2. / 720.,
+        "width", G_TYPE_DOUBLE, (double) 640./1280.,
+        "height", G_TYPE_DOUBLE, (double) 240./720.,
+        NULL);
+    g_object_set (mmalvideosink, "destinationwindow", destinationwindow, NULL);
+    gst_object_unref (mmalvideosink);
+    mmalvideosink = NULL;
+  }
 
   /* we add a message handler */
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
