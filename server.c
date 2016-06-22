@@ -52,6 +52,7 @@ int main(int argc, char* argv[])
       "videotestsrc is-live=true pattern=white "
       "! %s "
       "! timestampoverlay "
+      "! queue "
       "! %s", get_current_mode(), sink_pipeline);
   g_printerr ("Using pipeline %s\n", pipeline_description);
   epipeline = gst_parse_launch (pipeline_description, &err);
@@ -82,6 +83,8 @@ int main(int argc, char* argv[])
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   gst_bus_add_watch (bus, bus_call, loop);
   gst_object_unref (bus);
+
+  gst_pipeline_set_latency (pipeline, 100 * GST_MSECOND);
 
   gst_element_set_state(epipeline, GST_STATE_READY);
 
