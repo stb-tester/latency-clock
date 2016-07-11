@@ -136,6 +136,21 @@ bus_call (GstBus *bus, GstMessage *msg, gpointer data)
   return TRUE;
 }
 
+struct frac {
+    int n, d;
+};
+
+struct frac fps_to_frac(double fps) {
+  struct frac out;
+  if (fabs(fps * 1001. / 1000. - round(fps)) > fabs(round(fps) - fps))
+    out.d = 1;
+  else
+    out.d = 1001;
+
+  out.n = round(fps * out.d);
+  return out;
+}
+
 static gchar*
 get_current_mode (void)
 {
@@ -144,7 +159,7 @@ get_current_mode (void)
   GError * err = NULL;
   GRegex * regex;
   GMatchInfo * match_info = NULL;
-  int fps;
+  struct frac fps;
   gchar* argv[] = {"tvservice", "-s", NULL};
 
   /* On a Raspberry Pi we can get the current mode from tvservice so we can set
@@ -168,10 +183,9 @@ get_current_mode (void)
         "Output was %s\n", tv_stdout);
     goto error;
   };
-  fps = (int) round (g_strtod (g_match_info_fetch (match_info, 3), NULL));
-
-  return g_strdup_printf ("video/x-raw,width=640,height=240,framerate=%i/1",
-      fps);
+  fps = fps_to_frac (g_strtod (g_match_info_fetch (match_info, 3), NULL));
+  return g_strdup_printf ("video/x-raw,width=640,height=240,framerate=%i/%i",
+      fps.n, fps.d);
 error:
   return "video/x-raw,width=640,height=240,framerate=50/1";
 }
