@@ -1,8 +1,8 @@
-all: client server gsttimestampoverlay.so
+all: client server libgsttimeoverlayparse.so
 
 CFLAGS?=-Wall -Werror -O2
 
-gsttimestampoverlay.so : \
+libgsttimeoverlayparse.so : \
         gsttimestampoverlay.c \
         gsttimestampoverlay.h \
         gsttimeoverlayparse.c \
