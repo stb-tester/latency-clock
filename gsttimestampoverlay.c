@@ -223,10 +223,7 @@ gst_timestampoverlay_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame 
   else
     render_time = clock_time;
 
-  GST_OBJECT_LOCK (overlay->realtime_clock);
-  render_realtime = gst_clock_unadjust_unlocked (
-      overlay->realtime_clock, render_time);
-  GST_OBJECT_UNLOCK (overlay->realtime_clock);
+  render_realtime = render_time;
 
   imgdata = frame->data[0];
 
