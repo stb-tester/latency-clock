@@ -46,12 +46,15 @@ Clock synchronisation
 The latency is the difference between two clocks: the client's (when the frame
 was received) and the server's (when it was displayed).  NTP over the internet
 typically leaves these several milliseconds apart, and the offset wanders.  To
-measure it, the servers answer time requests on UDP port 10123.
-`timeclient.py HOST` (or `timeclient.OffsetTracker` from Python) does an
-NTP-style exchange and reports the offset between the clocks, accurate to half
-of the network round-trip time (typically well under 0.1ms on a LAN):
+measure it, the servers answer time requests on UDP port 10123, and
+`client.py` sends a request with every frame (an NTP-style exchange, accurate
+to half of the network round-trip time, typically well under 0.1ms on a LAN)
+and records the offset with each frame.  Set the tag `latency_clock_server` to the
+server's hostname to enable this.  The latency corrected for the offset is
 
-    latency = receive_time - render_realtime + offset
+    hw_receive_time - render_realtime + clock_offset
+
+`timeclient.py HOST` prints the offset once a second, for debugging.
 
 For an example use-case see
 <https://stb-tester.com/blog/2016/07/05/latency-measurements>.

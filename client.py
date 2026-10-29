@@ -27,6 +27,8 @@ import numpy
 import stbt
 from numpy.lib.recfunctions import merge_arrays
 
+import timeclient
+
 
 NUM_TIMESTAMPS = 6
 SQUARE_SIZE = 8
@@ -44,25 +46,41 @@ VIDEO_TIMESTAMPS_FIELDS = [
 ]
 VIDEO_TIMESTAMPS = numpy.dtype(VIDEO_TIMESTAMPS_FIELDS)
 
+# clock_offset is the server's realtime clock minus ours, measured with
+# timeclient.py; NaN if the server wasn't configured or didn't answer.  The
+# latency corrected for the clock offset is
+# hw_receive_time - render_realtime + clock_offset.
 OWN_TIMESTAMPS_FIELDS = [
     ("hw_receive_time", float),
     ("stbt_receive_time", float),
+    ("clock_offset", float),
+    ("clock_offset_delay", float),
 ]
 OWN_TIMESTAMPS = numpy.dtype(OWN_TIMESTAMPS_FIELDS)
 
 RECORD = numpy.dtype(VIDEO_TIMESTAMPS_FIELDS + OWN_TIMESTAMPS_FIELDS)
 
 def test_measure_latency():
+    """Set the tag `latency_clock_server` to the hostname (or host:port) of the
+    machine running the server to measure the offset between its clock and
+    ours."""
     data = numpy.ndarray(shape=(NUM_SAMPLES), dtype=RECORD)
+
+    server = stbt.get_config("result.tags", "latency_clock_server", None)
+    host, _, port = (server or "").partition(":")
+    clock_offset = timeclient.OffsetTracker(
+        host or None, int(port or timeclient.DEFAULT_PORT))
 
     for n, (frame, _) in enumerate(stbt.frames(50)):
         if n >= NUM_SAMPLES:
             break
-        stbt_receive_time = numpy.array(
-            [(frame.time, time.time())], dtype=OWN_TIMESTAMPS)
+        own_timestamps = numpy.array(
+            [(frame.time, time.time()) + clock_offset.update()],
+            dtype=OWN_TIMESTAMPS)
         timestamps = read_timestamps(frame)
-        data[n] = merge_arrays([timestamps, stbt_receive_time], flatten=True,
+        data[n] = merge_arrays([timestamps, own_timestamps], flatten=True,
                                usemask=False)
+    clock_offset.close()
 
     # Sometimes we'll lose a row but no biggie
     numpy.savetxt("latency-test.txt", data[:n])
