@@ -24,6 +24,8 @@
 #include <math.h>
 #include <gst/gst.h>
 
+#include "timeserver.h"
+
 static gboolean bus_call (GstBus *bus, GstMessage *msg, gpointer data);
 static gchar* get_current_mode (void);
 
@@ -41,6 +43,9 @@ int main(int argc, char* argv[])
   GstClock *clock;
 
   gst_init(&argc, &argv);
+
+  if (timeserver_start (TIMESERVER_DEFAULT_PORT) != 0)
+    return 1;
 
   loop = g_main_loop_new (NULL, FALSE);
 

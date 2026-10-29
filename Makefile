@@ -11,8 +11,9 @@ libgsttimeoverlayparse.so : \
 	$(CC) -o$@ --shared -fPIC $^ $(CFLAGS) \
 	    $$(pkg-config --cflags --libs gstreamer-1.0 gstreamer-video-1.0)
 
-server : server.c
-	$(CC) -o$@ $^ $(CFLAGS) $$(pkg-config --cflags --libs gstreamer-1.0) -lm
+server : server.c timeserver.c timeserver.h
+	$(CC) -o$@ server.c timeserver.c $(CFLAGS) \
+	    $$(pkg-config --cflags --libs gstreamer-1.0) -lm -lpthread
 
 client : client.c
 	$(CC) -o$@ $^ $(CFLAGS) $$(pkg-config --cflags --libs gstreamer-1.0)
