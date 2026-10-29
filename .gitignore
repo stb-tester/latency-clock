@@ -2,3 +2,5 @@
 *.so
 client
 server
+dispmanx-server
+__pycache__/
