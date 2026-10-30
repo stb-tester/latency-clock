@@ -20,10 +20,10 @@ server : server.c timeserver.c timeserver.h
 # libraspberrypi-dev package:
 VC_PREFIX?=/opt/vc
 
-dispmanx-server : dispmanx-server.c timeserver.c timeserver.h
-	$(CC) -o$@ dispmanx-server.c timeserver.c $(CFLAGS) \
+dispmanx-server : dispmanx-server.c timeserver.c timeserver.h click.c click.h
+	$(CC) -o$@ dispmanx-server.c timeserver.c click.c $(CFLAGS) \
 	    -I$(VC_PREFIX)/include -L$(VC_PREFIX)/lib -Wl,-rpath,$(VC_PREFIX)/lib \
-	    -lbcm_host -lvcos -lvchiq_arm -lm -lpthread
+	    -lbcm_host -lvcos -lvchiq_arm -l:libasound.so.2 -lm -lpthread
 
 client : client.c
 	$(CC) -o$@ $^ $(CFLAGS) $$(pkg-config --cflags --libs gstreamer-1.0)

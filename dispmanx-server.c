@@ -33,6 +33,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "click.h"
 #include "timeserver.h"
 
 #define WIDTH 640
@@ -237,7 +238,7 @@ typedef struct {
  * `vsync_ns` (CLOCK_MONOTONIC) into resource `buffer`.  Returns the
  * render_realtime drawn. */
 static uint64_t
-render (Renderer *r, int buffer, int64_t vsync_ns)
+render (Renderer *r, int buffer, int64_t vsync_ns, int marker)
 {
   unsigned char *stamp = r->image + STAMP_TOP * PITCH + STAMP_LEFT * 2;
   int64_t render_ns = vsync_ns + r->offset_ns;
@@ -253,6 +254,17 @@ render (Renderer *r, int buffer, int64_t vsync_ns)
   draw_timestamp (3, vsync_ns, stamp, PITCH, 2);
   draw_timestamp (4, render_ns, stamp, PITCH, 2);
   draw_timestamp (5, render_realtime, stamp, PITCH, 2);
+
+  /* With --audio-device, a black block to the left of the timestamps on the
+   * frame we click with (marker 1), and to the right on the frame after
+   * (marker 2), so a capture that keeps only every other frame still sees
+   * one of them and knows which: */
+  for (int line = 0; line < NUM_TIMESTAMPS * 8; line++) {
+    unsigned char *row = r->image + (STAMP_TOP + line) * PITCH;
+    memset (row, marker == 1 ? 0 : 0xff, STAMP_LEFT * 2);
+    memset (row + (STAMP_LEFT + 64 * 8) * 2, marker == 2 ? 0 : 0xff,
+        (WIDTH - STAMP_LEFT - 64 * 8) * 2);
+  }
 
   /* write_data ignores the rect's x and width, and transfers whole rows
    * starting at src_address + rect.y * pitch: */
@@ -298,7 +310,11 @@ usage (const char *argv0)
       "  --offset-us N  add N us to the drawn times, e.g. for the time from\n"
       "                 the vsync callback to the first active line (default 0)\n"
       "  --time-port N  answer UDP time requests on port N; 0 to disable\n"
-      "                 (default %d)\n", argv0, TIMESERVER_DEFAULT_PORT);
+      "                 (default %d)\n"
+      "  --audio-device DEV  play a click on ALSA device DEV (e.g. hw:0,0 for\n"
+      "                 the Pi's HDMI) at the time of every Nth vsync, and mark\n"
+      "                 that frame and the next (default: no audio)\n"
+      "  --click-every N  (default 30)\n", argv0, TIMESERVER_DEFAULT_PORT);
 }
 
 int
@@ -306,6 +322,9 @@ main (int argc, char *argv[])
 {
   static Renderer renderer;
   static VsyncModel model;
+  static VsyncSchedule schedule = { PTHREAD_MUTEX_INITIALIZER, 0 };
+  const char *audio_device = NULL;
+  int click_every = 30;
   Stats stats = { 0 };
   int display_num = 0, layer = 2000, lead = 1, time_port =
       TIMESERVER_DEFAULT_PORT;
@@ -329,6 +348,8 @@ main (int argc, char *argv[])
     { "lead", required_argument, NULL, 'n' },
     { "offset-us", required_argument, NULL, 'o' },
     { "time-port", required_argument, NULL, 'p' },
+    { "audio-device", required_argument, NULL, 'a' },
+    { "click-every", required_argument, NULL, 'c' },
     { "help", no_argument, NULL, 'h' },
     { NULL, 0, NULL, 0 }
   };
@@ -340,16 +361,21 @@ main (int argc, char *argv[])
       case 'n': lead = atoi (optarg); break;
       case 'o': offset_us = atol (optarg); break;
       case 'p': time_port = atoi (optarg); break;
+      case 'a': audio_device = optarg; break;
+      case 'c': click_every = atoi (optarg); break;
       default: usage (argv[0]); return opt == 'h' ? 0 : 1;
     }
   }
-  if (lead < 1) {
+  if (lead < 1 || click_every < 2) {
     usage (argv[0]);
     return 1;
   }
   renderer.offset_ns = offset_us * 1000;
 
   if (time_port && timeserver_start (time_port) != 0)
+    return 1;
+  schedule.offset_ns = renderer.offset_ns;
+  if (audio_device && click_start (audio_device, click_every, &schedule) != 0)
     return 1;
 
   memset (&sa, 0, sizeof (sa));
@@ -430,6 +456,12 @@ main (int argc, char *argv[])
     index = model_add (&model, vsync_ns, &residual);
     if (!model.ready)
       continue;
+    pthread_mutex_lock (&schedule.lock);
+    schedule.t0 = model.t0;
+    schedule.a = model.a;
+    schedule.period = model.period;
+    schedule.ready = 1;
+    pthread_mutex_unlock (&schedule.lock);
     stats.resid_sum2 += residual * residual;
     stats.resid_n++;
     if (fabs (residual) > stats.resid_max)
@@ -500,7 +532,9 @@ main (int argc, char *argv[])
     prepared = i;
     prepared_for = index + lead + 1;
     prepared_render_realtime = render (&renderer, prepared,
-        model_time (&model, prepared_for));
+        model_time (&model, prepared_for),
+        !audio_device ? 0 : prepared_for % click_every == 0 ? 1 :
+        prepared_for % click_every == 1 ? 2 : 0);
 
     now = clock_ns (CLOCK_MONOTONIC);
     if (now > next_stats_ns) {
